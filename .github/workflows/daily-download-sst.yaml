@@ -1,0 +1,64 @@
+
+# Events
+on: 
+  schedule: 
+  - cron: '0 6 * * MON'
+  push: 
+    branches: main
+
+
+# Runner Environment
+
+name: Get Newest OISSTv2 Daily Data
+jobs:
+  rvest_current_month:
+  runs-on: ubuntu-latest
+  timeout-minutes: 10
+  
+# Environment Variables
+env:
+  RENV_PATHS_ROOT: ~/.local/share/renv
+  GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+  
+  
+# Workflow Setup
+steps:
+  - uses: actions/checkout@v2
+  - uses: r-lib/actions/setup-r@v2
+    with:
+      # don't reinstall R
+      install-r: false
+      # use RStudio's CRAN mirror with precompiled binaries
+      use-public-rspm: true
+
+
+# Load /  Restore Packages
+
+- name: Install remotes
+  run: |
+    install.packages("remotes")
+    remotes::install_deps(dependencies = TRUE)
+  shell: Rscript {0}
+  
+- name: Restore packages
+  shell: Rscript {0}
+  run: |
+    if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
+    renv::restore()
+
+
+
+# Run Script Within Repository
+
+- name: Get last month
+  run: Rscript -e 'source("R/get_current_data.R")'
+  
+  
+# Commit to Repository
+- name: Commit results
+  run: |
+    git config --local user.email "adamkemberling@github.com"
+    git config --local user.name "GitHub Actions"
+    git add data/*
+    git commit -m 'Daily SST data updated' || echo "No changes to commit"
+    git push origin || echo "No changes to commit"
